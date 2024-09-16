@@ -8,9 +8,9 @@ description = "A ELF parser to parse ELF information and convert it to memory se
 keywords = ["Starry", "ELF"]
 
 [dependencies]
-axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
-page_table_entry = { git = "https://github.com/Starry-OS/page_table_entry.git" }
+axerrno = "0.1"
+page_table_entry = "0.4"
 xmas-elf = "0.9.0"
-memory_addr = { git = "https://github.com/Starry-OS/memory_addr.git" }
-log = "0.4"
+memory_addr = "0.3"
+log = "0.4.21"
 cfg-if = "1.0"
