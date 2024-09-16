@@ -25,22 +25,16 @@ pub fn get_auxv_vector(
     elf_base_addr: Option<usize>,
 ) -> BTreeMap<u8, usize> {
     // Some elf will load ELF Header (offset == 0) to vaddr 0. In that case, base_addr will be added to all the LOAD.
-    let elf_header_vaddr: usize = if let Some(header) = elf
+    let elf_header_vaddr: usize = if elf
         .program_iter()
-        .find(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Load))
+        .find(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Load) && ph.virtual_addr() == 0)
+        .is_some()
     {
-        // Loading ELF Header into memory.
-        let vaddr = header.virtual_addr() as usize;
-
-        if vaddr == 0 {
-            if let Some(addr) = elf_base_addr {
-                addr
-            } else {
-                panic!("ELF Header is loaded to vaddr 0, but no base_addr is provided");
-            }
-        } else {
-            vaddr
-        }
+        assert!(
+            elf.header.pt2.type_().as_type() != xmas_elf::header::Type::Executable,
+            "ELF Header is loaded to vaddr 0, but the ELF file is executable"
+        );
+        elf_base_addr.expect("ELF Header is loaded to vaddr 0, but no base_addr is provided")
     } else {
         0
     };
