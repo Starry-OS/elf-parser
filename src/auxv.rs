@@ -25,7 +25,6 @@ const AT_RANDOM: u8 = 25;
 pub fn get_auxv_vector(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> BTreeMap<u8, usize> {
     // Some elf will load ELF Header (offset == 0) to vaddr 0. In that case, base_addr will be added to all the LOAD.
     let kernel_offset = get_elf_base_addr(elf, elf_base_addr).unwrap();
-    info!("ELF header addr: 0x{:x}", kernel_offset);
     let mut map = BTreeMap::new();
 
     if let Some(ph) = elf
