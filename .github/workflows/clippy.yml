@@ -35,6 +35,7 @@ jobs:
       run: cargo fmt --all -- --check
 
   build:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -49,4 +50,4 @@ jobs:
         targets: x86_64-unknown-none, riscv64gc-unknown-none-elf, aarch64-unknown-none
     - uses: Swatinem/rust-cache@v2
     - name: Build for ${{ matrix.arch }}
-      run: make ARCH=${{ matrix.arch }}
+      run: make build ARCH=${{ matrix.arch }}
