@@ -1,7 +1,6 @@
 //! Some constant in the elf file
 extern crate alloc;
 use alloc::collections::BTreeMap;
-use log::info;
 use memory_addr::PAGE_SIZE_4K;
 
 use crate::get_elf_base_addr;
@@ -16,12 +15,17 @@ const AT_BASE: u8 = 7;
 const AT_ENTRY: u8 = 9;
 const AT_RANDOM: u8 = 25;
 
-/// To parse the elf file and get the auxv vectors
+/// Read auxiliary vectors from the ELF file.
 ///
 /// # Arguments
 ///
 /// * `elf` - The elf file
 /// * `elf_base_addr` - The base address of the elf file if the file will be loaded to the memory
+///
+/// # Return
+/// It will return a `BTreeMap<u8, usize>` which contains the auxiliary vectors. The key is the entry type, and the value is the value of the auxiliary vector.
+///
+/// Details about auxiliary vectors are described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
 pub fn get_auxv_vector(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> BTreeMap<u8, usize> {
     // Some elf will load ELF Header (offset == 0) to vaddr 0. In that case, base_addr will be added to all the LOAD.
     let kernel_offset = get_elf_base_addr(elf, elf_base_addr).unwrap();

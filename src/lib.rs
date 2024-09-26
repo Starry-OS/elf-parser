@@ -4,7 +4,6 @@
 pub mod arch;
 extern crate alloc;
 use alloc::{
-    collections::btree_map::BTreeMap,
     string::{String, ToString},
     vec::Vec,
 };
@@ -15,7 +14,7 @@ use page_table_entry::MappingFlags;
 
 mod auxv;
 pub use auxv::get_auxv_vector;
-use user_stack::init_stack;
+pub use user_stack::get_app_stack_region;
 mod user_stack;
 
 pub use crate::arch::get_relocate_pairs;
@@ -32,12 +31,12 @@ pub struct ELFSegment {
     pub data: Option<Vec<u8>>,
 }
 
-/// The base address of the ELF file loaded into the memory.
+/// Calculate the base address of the ELF file loaded into the memory.
 ///
-/// When the ELF file is a position-independent executable,
+/// - When the ELF file is a position-independent executable,
 /// the base address will be decided by the kernel.
 ///
-/// Otherwise, the base address is determined by the file, and this field is `None`.
+/// - Otherwise, the base address is determined by the file, and this field `given_base` will be ignored.
 ///
 /// # Arguments
 ///
@@ -57,10 +56,10 @@ pub fn get_elf_base_addr(elf: &xmas_elf::ElfFile, given_base: usize) -> Result<u
         {
             // The LOAD segements are sorted by the virtual address, so the first one is the lowest one.
             if ph.virtual_addr() == 0 {
-                return Err(
+                Err(
                     "The ELF file is an executable, but some segements may be loaded to vaddr 0"
                         .to_string(),
-                );
+                )
             } else {
                 Ok(0)
             }
@@ -72,7 +71,7 @@ pub fn get_elf_base_addr(elf: &xmas_elf::ElfFile, given_base: usize) -> Result<u
     }
 }
 
-/// To parse the elf file and return the segments of the elf file
+/// To parse the elf file and return segments (from [`self::ELFSegment`]) of the elf file
 ///
 /// # Arguments
 ///
@@ -80,7 +79,7 @@ pub fn get_elf_base_addr(elf: &xmas_elf::ElfFile, given_base: usize) -> Result<u
 /// * `elf_base_addr` - The base address of the elf file if the file will be loaded to the memory
 ///
 /// # Return
-/// Return the entry point, the segments of the elf file and the relocate pairs
+/// Return segments of the elf file (from [`self::ELFSegment`])
 ///
 /// # Warning
 /// It can't be used to parse the elf file which need the dynamic linker, but you can do this by calling this function recursively
@@ -129,7 +128,7 @@ pub fn get_elf_segments(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> Vec<EL
     segments
 }
 
-/// To parse the elf file and return the segments of the elf file
+/// Return the entry point of the elf file
 ///
 /// # Arguments
 ///
@@ -137,7 +136,7 @@ pub fn get_elf_segments(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> Vec<EL
 /// * `elf_base_addr` - The base address of the elf file if the file will be loaded to the memory
 ///
 /// # Return
-/// Return the entry point
+/// Returns the address of the entry point in the ELF file
 ///
 /// # Warning
 /// It can't be used to parse the elf file which need the dynamic linker, but you can do this by calling this function recursively
@@ -152,44 +151,4 @@ pub fn get_elf_entry(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> VirtAddr 
 
     let entry = elf.header.pt2.entry_point() as usize + base_addr;
     entry.into()
-}
-
-/// To get the app stack and the information on the stack from the ELF file
-///
-/// # Arguments
-///
-/// * `args` - The arguments of the app
-/// * `envs` - The environment variables of the app
-/// * `auxv` - The auxv vector of the app
-/// * `stack_top` - The top address of the stack
-/// * `stack_size` - The size of the stack.
-///
-/// # Return
-///
-/// `(stack_content, real_stack_bottom)`
-///
-/// * `stack_content`: the stack data from the low address to the high address, which will be used to map in the memory
-///
-/// * `real_stack_bottom`: The initial stack bottom is `stack_top + stack_size`.After push arguments into the stack, it will return the real stack bottom
-///
-/// The return data will be divided into two parts.
-/// * The first part is the free stack content, which is all 0.
-/// * The second part is the content carried by the user stack when it is initialized, such as args, auxv, etc.
-///
-/// The detailed format is described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
-pub fn get_app_stack_region(
-    args: Vec<String>,
-    envs: &[String],
-    auxv: BTreeMap<u8, usize>,
-    stack_top: VirtAddr,
-    stack_size: usize,
-) -> (Vec<u8>, usize) {
-    let ustack_top = stack_top;
-    let ustack_bottom = ustack_top + stack_size;
-    // The stack variable is actually the information carried by the stack
-    let stack = init_stack(args, envs, auxv, ustack_bottom.into());
-    let ustack_bottom = stack.get_sp();
-    let mut data = [0_u8].repeat(stack_size - stack.get_len());
-    data.extend(stack.get_data_front_ref());
-    (data, ustack_bottom)
 }

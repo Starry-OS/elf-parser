@@ -1,5 +1,4 @@
-//! Relocate .rela.dyn sections
-//! R_TYPE 与处理器架构有关，相关文档详见
+//! Relocate .rela sections for ELF file under riscv64 architecture.
 //! riscv: <https://d3s.mff.cuni.cz/files/teaching/nswi200/202324/doc/riscv-abi.pdf>
 
 use core::mem::size_of;
@@ -23,6 +22,10 @@ const TLS_DTV_OFFSET: usize = 0x800;
 ///
 /// * `elf` - The elf file
 /// * `elf_base_addr` - The base address of the elf file if the file will be loaded to the memory
+///
+/// # Return
+/// It will return a vector of `RelocatePair` (from [`super::RelocatePair`]) which contains the source address
+/// and destination address of the relocation.
 pub fn get_relocate_pairs(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> Vec<RelocatePair> {
     let elf_header = elf.header;
     let magic = elf_header.pt1.magic;

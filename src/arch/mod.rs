@@ -1,8 +1,8 @@
-//! Architecture-specific types and operations.
+//! Architecture-specific types and operations about relocation for ELF file.
 
 use memory_addr::VirtAddr;
 #[derive(Debug)]
-/// To describe the relocation pair in the ELF
+/// To describe the relocation pair in the ELF file
 pub struct RelocatePair {
     /// the source address of the relocation
     pub src: VirtAddr,

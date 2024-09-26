@@ -1,5 +1,4 @@
-//! Relocate .rela.dyn sections
-//! R_TYPE 与处理器架构有关，相关文档详见
+//! Relocate .rela sections for ELF file under x86_64 architecture.
 //! x86_64: <https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build>
 use core::mem::size_of;
 
@@ -18,12 +17,16 @@ const R_X86_64_RELATIVE: u32 = 8;
 
 const R_X86_64_IRELATIVE: u32 = 37;
 
-/// To parse the elf file and get the relocate pairs
+/// Read the relocate pairs from the elf file.
 ///
 /// # Arguments
 ///
 /// * `elf` - The elf file
 /// * `elf_base_addr` - The base address of the elf file if the file will be loaded to the memory
+///
+/// # Return
+/// It will return a vector of `RelocatePair` (from [`super::RelocatePair`]) which contains the source address
+/// and destination address of the relocation.
 pub fn get_relocate_pairs(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> Vec<RelocatePair> {
     let elf_header = elf.header;
     let magic = elf_header.pt1.magic;
@@ -93,12 +96,7 @@ pub fn get_relocate_pairs(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> Vec<
                     }),
 
                     R_X86_64_IRELATIVE => {
-                        // TODO: 这里的 value 应当是调用 value_function() 得到的内容，但是会导致卡死
-                        // let value_function = base_addr + entry.get_addend() as usize;
-                        // // 值是在相应的R_X86_64_RELATIVE重定位结果地址处执行的无参数函数返回的程序地址
-                        // // let value = unsafe {
-                        // //     core::mem::transmute::<_, fn() -> usize>(value_function)
-                        // // }();
+                        // TODO: Implement IRELATIVE relocation correctly
                         let value = 0;
                         pairs.push(RelocatePair {
                             src: VirtAddr::from(value),

@@ -1,114 +1,144 @@
+//! Initialize the user stack for the application
+//!
+//! The structure of the user stack is described in the following figure:
+//! position            content                     size (bytes) + comment
+//!   ------------------------------------------------------------------------
+//! stack pointer ->  [ argc = number of args ]     8
+//!                   [ argv[0] (pointer) ]         8   (program name)
+//!                   [ argv[1] (pointer) ]         8
+//!                   [ argv[..] (pointer) ]        8 * x
+//!                   [ argv[n - 1] (pointer) ]     8
+//!                   [ argv[n] (pointer) ]         8   (= NULL)
+//!                   [ envp[0] (pointer) ]         8
+//!                   [ envp[1] (pointer) ]         8
+//!                   [ envp[..] (pointer) ]        8
+//!                   [ envp[term] (pointer) ]      8   (= NULL)
+//!                   [ auxv[0] (Elf32_auxv_t) ]    16
+//!                   [ auxv[1] (Elf32_auxv_t) ]    16
+//!                   [ auxv[..] (Elf32_auxv_t) ]   16
+//!                   [ auxv[term] (Elf32_auxv_t) ] 16  (= AT_NULL vector)
+//!                   [ padding ]                   0 - 16
+//!                   [ argument ASCIIZ strings ]   >= 0
+//!                   [ environment ASCIIZ str. ]   >= 0
+//!
+//! (0xbffffff8)      [ end marker ]                8   (= NULL)
+//!
+//! (0xc0000000)      < bottom of stack >           0   (virtual)
+//!
+//! More details can be found in the link: <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
+
 extern crate alloc;
-use core::{mem::align_of, ptr::null};
 
-use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
+use memory_addr::VirtAddr;
 
-pub const USER_INIT_STACK_SIZE: usize = 0x4000;
-/// 规定用户栈初始化时的内容
-pub struct UserStack {
-    /// 当前的用户栈的栈顶(低地址)
+struct UserStack {
     sp: usize,
-    /// 当前的用户栈的栈底(高地址)
-    bottom: usize,
-    /// data保存了用户栈上的信息
-    pub data: Vec<u8>,
 }
 
 impl UserStack {
     pub fn new(sp: usize) -> Self {
-        let data = vec![0; USER_INIT_STACK_SIZE];
-        Self {
-            sp,
-            bottom: sp,
-            data,
+        Self { sp }
+    }
+    fn push(&mut self, src: &[u8], stack_data: &mut Vec<u8>) {
+        self.sp -= src.len();
+        // let mut target_data = src.to_vec();
+        // target_data.append(stack_data);
+        // *stack_data = target_data;
+        stack_data.splice(0..0, src.iter().cloned());
+    }
+    pub fn push_usize_slice(&mut self, src: &[usize], stack_data: &mut Vec<u8>) {
+        for val in src.iter().rev() {
+            let bytes = val.to_le_bytes();
+            self.push(&bytes, stack_data);
         }
     }
-    pub fn get_data_front_ref(&self) -> &[u8] {
-        let offset = self.data.len() - (self.bottom - self.sp);
-        &self.data[offset..]
-    }
-    #[allow(unused)]
-    pub fn get_data_front_mut_ref(&mut self) -> &mut [u8] {
-        let offset = self.data.len() - (self.bottom - self.sp);
-        &mut self.data[offset..]
-    }
-    /// 插入一段数据到用户栈中
-    /// 返回的是插入后的用户栈顶，即这段数据的起始位置
-    pub fn push<T: Copy>(&mut self, data: &[T]) {
-        self.sp -= core::mem::size_of_val(data);
-        self.sp -= self.sp % align_of::<T>();
-        let offset = self.data.len() - (self.bottom - self.sp);
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                self.data.as_mut_ptr().add(offset) as *mut T,
-                data.len(),
-            )
-        }
-        .copy_from_slice(data);
-    }
-    /// 记得插入后补0
-    pub fn push_str(&mut self, str: &str) -> usize {
-        self.push(&[b'\0']);
-        self.push(str.as_bytes());
+    pub fn push_str(&mut self, str: &str, stack_data: &mut Vec<u8>) -> usize {
+        self.push(&['\0' as u8], stack_data);
+
+        self.push(str.as_bytes(), stack_data);
         self.sp
     }
     pub fn get_sp(&self) -> usize {
         self.sp
     }
-    // 获取真实的栈占用的内容
-    pub fn get_len(&self) -> usize {
-        self.bottom - self.sp
-    }
 }
 
-/// 初始化用户栈
-pub fn init_stack(
-    args: Vec<String>,
+fn init_stack(
+    args: &[String],
     envs: &[String],
-    auxv: BTreeMap<u8, usize>,
+    auxv: &BTreeMap<u8, usize>,
     sp: usize,
-) -> UserStack {
+) -> (UserStack, Vec<u8>) {
+    let mut data = Vec::new();
     let mut stack = UserStack::new(sp);
-    let random_str: &[usize; 2] = &[3703830112808742751usize, 7081108068768079778usize];
-    stack.push(random_str.as_slice());
+    // define a random string with 16 bytes
+    stack.push("0123456789abcdef".as_bytes(), &mut data);
     let random_str_pos = stack.get_sp();
-    // 按照栈的结构，先加入envs和argv的对应实际内容
+    // Push arguments and environment variables
     let envs_slice: Vec<_> = envs
         .iter()
-        .map(|env| stack.push_str(env.as_str()))
+        .map(|env| stack.push_str(env, &mut data))
         .collect();
     let argv_slice: Vec<_> = args
         .iter()
-        .map(|arg| stack.push_str(arg.as_str()))
+        .map(|arg| stack.push_str(arg, &mut data))
         .collect();
-    // 加入envs和argv的地址
-    stack.push(&[null::<u8>(), null::<u8>()]);
-    let final_sp = stack.get_sp()
-        - (auxv.len() * 2 + envs_slice.len() + argv_slice.len()) * core::mem::size_of::<usize>()
-        - 8 // auxv 与 envs 之间的空位
-        - 8 // envs 与 args 之间的空位
-        - 8; // argc 占用空间
-    if final_sp % 16 != 0 {
-        // 按照 SIMD 要求，保证最终用户栈是 16 Bytes 对齐的
-        // 更高的对齐要求理应对其他环境也适用，因此这里没有特殊指定 feature("fp_simd")
-        stack.push(&[null::<u8>()]);
-    }
-    // 再加入auxv
-    // 注意若是atrandom，则要指向栈上的一个16字节长度的随机字符串
+    let padding_null = "\0".repeat(8);
+    stack.push(padding_null.as_bytes(), &mut data);
+
+    stack.push("\0".repeat(stack.get_sp() % 16).as_bytes(), &mut data);
+    assert!(stack.get_sp() % 16 == 0);
+    // Push auxiliary vectors
     for (key, value) in auxv.iter() {
         if (*key) == 25 {
             // AT RANDOM
-            stack.push(&[*key as usize, random_str_pos]);
+            stack.push_usize_slice(&[*key as usize, random_str_pos], &mut data);
         } else {
-            stack.push(&[*key as usize, *value]);
-        }
+            stack.push_usize_slice(&[*key as usize, *value], &mut data);
+        };
     }
-    // 加入envs和argv的地址
-    stack.push(&[null::<u8>()]);
-    stack.push(envs_slice.as_slice());
-    stack.push(&[null::<u8>()]);
-    stack.push(argv_slice.as_slice());
-    // 加入argc
-    stack.push(&[args.len()]);
-    stack
+
+    // Push the argv and envp pointers
+    stack.push(padding_null.as_bytes(), &mut data);
+    stack.push_usize_slice(envs_slice.as_slice(), &mut data);
+    stack.push(padding_null.as_bytes(), &mut data);
+    stack.push_usize_slice(argv_slice.as_slice(), &mut data);
+    // Push argc
+    stack.push_usize_slice(&[args.len()], &mut data);
+    (stack, data)
+}
+
+/// To get the stack pointer and initialization content for the user stack
+///
+/// # Arguments
+///
+/// * `args` - The arguments of the application
+/// * `envs` - The environment variables of the application
+/// * `auxv` - The auxiliary vectors of the application. It can be generated by [`crate::auxv::get_auxv_vector`], whose type is `BTreeMap<u8, usize>`.
+/// The key is the entry type, and the value is the value of the auxiliary vector.
+/// * `stack_bottom` - The lowest address of the user stack
+/// * `stack_size` - The size of the stack.
+///
+/// # Return
+///
+/// `(expanded_content, stack_pointer)`
+///
+/// * `expanded_content`: Additional information on the stack, including arguments, environment variables, and auxiliary vectors.
+///
+/// * `stack_pointer`: The stack pointer of the application after the stack is initialized.
+///
+/// The detailed format is described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
+pub fn get_app_stack_region(
+    args: &[String],
+    envs: &[String],
+    auxv: &BTreeMap<u8, usize>,
+    stack_base: VirtAddr,
+    stack_size: usize,
+) -> (Vec<u8>, usize) {
+    let ustack_bottom = stack_base;
+    let ustack_top = ustack_bottom + stack_size;
+    // The stack variable is actually the information carried by the stack
+    let (stack, data) = init_stack(args, envs, auxv, ustack_top.into());
+    (data, stack.get_sp())
 }
