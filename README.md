@@ -1,6 +1,11 @@
 # elf-parser
 
-A lightweight parser written in Rust that reads the data of the ELF file and generates the layout of the corresponding user stack and other data structures according to the given user parameters and environment variables.
+A lightweight ELF parser written in Rust, providing assistance for loading applications into the kernel.
+
+It reads the data of the ELF file, and generates Sections, Relocations, Segments and so on.
+
+It also generate a layout of the user stack according to the given user parameters and environment variables. It will be 
+used for loading a given application into the physical memory in the kernel.
 
 ## Examples
 
