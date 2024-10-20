@@ -1,53 +1,30 @@
-name: CI
+name: Build & Check CI
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
-  clippy:
+  ci:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         rust-toolchain: [nightly]
+        targets: [x86_64-unknown-linux-gnu, x86_64-unknown-none, riscv64gc-unknown-none-elf, aarch64-unknown-none-softfloat]
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
+    - uses: dtolnay/rust-toolchain@nightly
       with:
         toolchain: ${{ matrix.rust-toolchain }}
         components: rust-src, clippy, rustfmt
-        targets: x86_64-unknown-none, riscv64gc-unknown-none-elf, aarch64-unknown-none
+        targets: ${{ matrix.targets }}
     - name: Check rust version
       run: rustc --version --verbose
-    - name: Clippy for the default target
-      continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
-      run: make clippy
-    - name: Clippy for x86_64
-      continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
-      run: make clippy ARCH=x86_64
-    - name: Clippy for riscv64
-      continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
-      run: make clippy ARCH=riscv64
-    - name: Clippy for aarch64
-      continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
-      run: make clippy ARCH=aarch64
     - name: Check code format
-      continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
       run: cargo fmt --all -- --check
-
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [x86_64, riscv64, aarch64]
-        rust-toolchain: [nightly]
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: ${{ matrix.rust-toolchain }}
-        components: rust-src, llvm-tools
-        targets: x86_64-unknown-none, riscv64gc-unknown-none-elf, aarch64-unknown-none
-    - uses: Swatinem/rust-cache@v2
-    - name: Build for ${{ matrix.arch }}
-      run: make build ARCH=${{ matrix.arch }}
+    - name: Clippy
+      run: cargo clippy --target ${{ matrix.targets }} --all-features -- -A clippy::new_without_default
+    - name: Build
+      run: cargo build --target ${{ matrix.targets }} --all-features
+    - name: Unit test
+      if: ${{ matrix.targets == 'x86_64-unknown-linux-gnu' }}
+      run: cargo test --target ${{ matrix.targets }} -- --nocapture
