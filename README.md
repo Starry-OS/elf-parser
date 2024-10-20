@@ -1,4 +1,8 @@
-# elf-parser
+# kernel-elf-parser
+
+[![Crates.io](https://img.shields.io/crates/v/kernel-elf-parser)](https://crates.io/crates/kernel-elf-parser)
+[![Docs.rs](https://docs.rs/kernel-elf-parser/badge.svg)](https://docs.rs/kernel-elf-parser)
+[![CI](https://github.com/Starry-OS/kernel-elf-parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Starry-OS/kernel-elf-parser/actions/workflows/ci.yml)
 
 A lightweight ELF parser written in Rust, providing assistance for loading applications into the kernel.
 
