@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/kernel-elf-parser)](https://crates.io/crates/kernel-elf-parser)
 [![Docs.rs](https://docs.rs/kernel-elf-parser/badge.svg)](https://docs.rs/kernel-elf-parser)
-[![CI](https://github.com/Starry-OS/kernel-elf-parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Starry-OS/kernel-elf-parser/actions/workflows/ci.yml)
+[![CI](https://github.com/Azure-stars/kernel-elf-parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Azure-stars/kernel-elf-parser/actions/workflows/ci.yml)
 
 A lightweight ELF parser written in Rust, providing assistance for loading applications into the kernel.
 
@@ -19,7 +19,7 @@ let envs: Vec<String> = vec!["LOG=file".to_string()];
 
 // The highest address of the user stack.
 let ustack_end = 0x4000_0000;
-let ustack_size = 0x2_0000;
+let ustack_size = 0x1_0000;
 let ustack_bottom = ustack_end - ustack_size;
 
 let stack_data =
