@@ -15,23 +15,21 @@ pub const R_AARCH64_GLOBAL_DATA: u32 = 1025;
 pub const R_AARCH64_JUMP_SLOT: u32 = 1026;
 pub const R_AARCH64_RELATIVE: u32 = 1027;
 
-/// To parse the elf file and get the relocate pairs
+/// Read relocate pairs from the elf file.
 ///
 /// # Arguments
 ///
-/// * `elf` - The elf file
-/// * `elf_base_addr` - The base address of the elf file if the file will be loaded to the memory
+/// * `elf` - The [`xmas_elf::ElfFile`] data
+/// * `base_addr` - The base address of the elf file if the file will be loaded to the memory
 ///
 /// # Return
-/// It will return a vector of `RelocatePair` (from [`super::RelocatePair`]) which contains the source address
+/// A vector of [`super::RelocatePair`] which contains the source
 /// and destination address of the relocation.
-pub fn get_relocate_pairs(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> Vec<RelocatePair> {
+pub fn relocate_pairs(elf: &xmas_elf::ElfFile, base_addr: usize) -> Vec<RelocatePair> {
     let elf_header = elf.header;
     let magic = elf_header.pt1.magic;
     assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
     let mut pairs = Vec::new();
-    // Some elf will load ELF Header (offset == 0) to vaddr 0. In that case, base_addr will be added to all the LOAD.
-    let base_addr = crate::get_elf_base_addr(elf, elf_base_addr).unwrap();
     info!("Base addr for the elf: 0x{:x}", base_addr);
     if let Some(rela_dyn) = elf.find_section_by_name(".rela.dyn") {
         let data = match rela_dyn.get_data(elf) {

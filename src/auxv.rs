@@ -3,8 +3,6 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 use memory_addr::PAGE_SIZE_4K;
 
-use crate::get_elf_base_addr;
-
 const AT_PHDR: u8 = 3;
 const AT_PHENT: u8 = 4;
 const AT_PHNUM: u8 = 5;
@@ -20,15 +18,13 @@ const AT_RANDOM: u8 = 25;
 /// # Arguments
 ///
 /// * `elf` - The elf file
-/// * `elf_base_addr` - The base address of the elf file if the file will be loaded to the memory
+/// * `base_addr` - The base address of the elf file if the file will be loaded to the memory
 ///
 /// # Return
 /// It will return a `BTreeMap<u8, usize>` which contains the auxiliary vectors. The key is the entry type, and the value is the value of the auxiliary vector.
 ///
 /// Details about auxiliary vectors are described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
-pub fn get_auxv_vector(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> BTreeMap<u8, usize> {
-    // Some elf will load ELF Header (offset == 0) to vaddr 0. In that case, base_addr will be added to all the LOAD.
-    let kernel_offset = get_elf_base_addr(elf, elf_base_addr).unwrap();
+pub fn auxv_vector(elf: &xmas_elf::ElfFile, base_addr: usize) -> BTreeMap<u8, usize> {
     let mut map = BTreeMap::new();
 
     if let Some(ph) = elf
@@ -38,7 +34,7 @@ pub fn get_auxv_vector(elf: &xmas_elf::ElfFile, elf_base_addr: usize) -> BTreeMa
         // The first LOAD segment is the lowest one. And its virtual address is the base address of the ELF file.
         map.insert(
             AT_PHDR,
-            kernel_offset + (ph.virtual_addr() + elf.header.pt2.ph_offset()) as usize,
+            base_addr + (ph.virtual_addr() + elf.header.pt2.ph_offset()) as usize,
         );
     } else {
         map.insert(AT_PHDR, 0);
